@@ -1,6 +1,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "wav_audio.h"
 #include "i2s_audio.h"
 #include "gpio_button.h"
 #include "wifi_station.h"
@@ -18,6 +19,7 @@ static void check_esp_err(esp_err_t err, const char* msg)
 
 void app_main(void)
 {
+    check_esp_err(wav_audio_init(), "wav_audio_init()");
     check_esp_err(gpio_button_init(), "gpio_button_init()");
     check_esp_err(i2s_audio_mic_init(), "i2s_audio_mic_init()");
     check_esp_err(i2s_audio_spk_init(), "i2s_audio_spk_init()");

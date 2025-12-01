@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "gpio_button.c" "i2s_audio.c" "wifi_station.c" "application.c"
+    SRCS "main.c" "gpio_button.c" "i2s_audio.c" "wav_audio.c" "wifi_station.c" "application.c"
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         freertos             # 操作系统内核
