@@ -17,12 +17,12 @@ int16_t *pcm16_data = (int16_t *)(send_buffer + 44);
 void application_button_boot_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Boot (GPIO %d) Pressed! - Executing action A.", gpio_num);
-    i2s_audio_read_pcm24_data(pcm_data, count);
+    i2s_audio_read_data_safe(pcm_data, count);
     ESP_LOGI(TAG, "Success reading %d samples!", count);
     for (int i = 0; i < 32; i++)
         ESP_LOGW(TAG, "%08x %08x %08x %08x %08x %08x %08x %08x", pcm_data[i*8], pcm_data[i*8 + 1], pcm_data[i*8 + 2], 
             pcm_data[i*8 + 3], pcm_data[i*8 + 4], pcm_data[i*8 + 5], pcm_data[i*8 + 6], pcm_data[i*8 + 7]);
-    for (int i = 20000; i < 20032; i++)
+    for (int i = 4000; i < 4032; i++)
         ESP_LOGW(TAG, "%08x %08x %08x %08x %08x %08x %08x %08x", pcm_data[i*8], pcm_data[i*8 + 1], pcm_data[i*8 + 2], 
             pcm_data[i*8 + 3], pcm_data[i*8 + 4], pcm_data[i*8 + 5], pcm_data[i*8 + 6], pcm_data[i*8 + 7]);
 }
@@ -45,7 +45,7 @@ void application_button_down_callback(uint8_t gpio_num)
     for (int i = 0; i < 32; i++)
         ESP_LOGW(TAG, "%d %d %d %d %d %d %d %d", pcm16_data[i*8], pcm16_data[i*8 + 1], pcm16_data[i*8 + 2], 
             pcm16_data[i*8 + 3], pcm16_data[i*8 + 4], pcm16_data[i*8 + 5], pcm16_data[i*8 + 6], pcm16_data[i*8 + 7]);
-    for (int i = 20000; i < 20032; i++)
+    for (int i = 4000; i < 4032; i++)
         ESP_LOGW(TAG, "%d %d %d %d %d %d %d %d", pcm16_data[i*8], pcm16_data[i*8 + 1], pcm16_data[i*8 + 2], 
             pcm16_data[i*8 + 3], pcm16_data[i*8 + 4], pcm16_data[i*8 + 5], pcm16_data[i*8 + 6], pcm16_data[i*8 + 7]);
     network_socket_data_publish(send_buffer, WAV_AUDIO_DEFAULT_FILE_SIZE);

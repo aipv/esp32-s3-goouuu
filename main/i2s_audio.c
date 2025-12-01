@@ -21,7 +21,15 @@ static void check_esp_err(esp_err_t err, const char* msg)
 
 esp_err_t i2s_audio_mic_init()
 {
-    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_chan_config_t chan_cfg = {
+        .id = (i2s_port_t)0,
+        .role = I2S_ROLE_MASTER,
+        .dma_desc_num = 8,
+        .dma_frame_num = 256,
+        .auto_clear_after_cb = true,
+        .auto_clear_before_cb = false,
+        .intr_priority = 0,
+    };
     check_esp_err(i2s_new_channel(&chan_cfg, NULL, &rx_handle), "i2s_new_channel_rx");
 
     i2s_std_config_t std_cfg = {
@@ -219,5 +227,77 @@ esp_err_t i2s_audio_test_pcm24_data(int32_t *buffer, int samples)
     vTaskDelay(pdMS_TO_TICKS(1000));
     ESP_LOGI(TAG, "Palying........");
     i2s_audio_play_pcm24_data(buffer, samples);
+    return ESP_OK;
+}
+
+#define I2S_READ_CHUNK_SAMPLES 1024 // 每次读取 1024 个样本 (4KB)
+
+/**
+ * @brief 安全地循环读取指定总数的 I2S 数据样本。
+ * * @param buffer 指向已分配好完整内存（例如 256KB）的目标缓冲区。
+ * @param total_samples 需要读取的样本总数（例如 65536）。
+ * @return esp_err_t 
+ */
+esp_err_t i2s_audio_read_data_safe(int32_t *buffer, int total_samples)
+{
+    esp_err_t ret = ESP_OK;
+    size_t total_bytes_to_read = (size_t)total_samples * sizeof(int32_t);
+    size_t total_bytes_read = 0;
+    int32_t *current_ptr = buffer; // 当前写入位置
+
+    // 1. 在读取开始时启用 I2S 通道
+    ret = i2s_channel_enable(rx_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "i2s_channel_enable_rx failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    // 2. 循环读取，直到达到总目标字节数
+    while (total_bytes_read < total_bytes_to_read) {
+        size_t bytes_left = total_bytes_to_read - total_bytes_read;
+        
+        // 确定本次需要读取的字节数（取剩余字节数和 CHUNK_SIZE 中的较小值）
+        size_t bytes_to_read_this_chunk = (bytes_left > I2S_READ_CHUNK_SAMPLES * sizeof(int32_t)) 
+                                         ? I2S_READ_CHUNK_SAMPLES * sizeof(int32_t) 
+                                         : bytes_left;
+        size_t bytes_read_this_chunk = 0;
+
+        // 设置一个较短的超时时间（例如 500ms），防止长时间阻塞
+        ret = i2s_channel_read(
+            rx_handle, 
+            current_ptr, // 写入当前位置
+            bytes_to_read_this_chunk, 
+            &bytes_read_this_chunk, 
+            pdMS_TO_TICKS(500)
+        );
+        
+        // 检查读取错误
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "i2s_channel_read failed at byte %u: %s", total_bytes_read, esp_err_to_name(ret));
+            goto cleanup;
+        }
+
+        // 检查是否读到预期字节数（超时可能导致读到的字节数少于请求）
+        if (bytes_read_this_chunk < bytes_to_read_this_chunk) {
+            ESP_LOGW(TAG, "Incomplete read: expected %u, got %u. Stopping read.", bytes_to_read_this_chunk, bytes_read_this_chunk);
+            total_bytes_read += bytes_read_this_chunk;
+            break; // 停止读取
+        }
+
+        // 更新总进度和写入指针
+        total_bytes_read += bytes_read_this_chunk;
+        current_ptr += (bytes_read_this_chunk / sizeof(int32_t)); 
+    }
+
+cleanup:
+    // 3. 在读取结束后禁用 I2S 通道
+    i2s_channel_disable(rx_handle);
+
+    // 4. 最终检查是否读取完整
+    if (total_bytes_read != total_bytes_to_read) {
+        ESP_LOGW(TAG, "Final read incomplete: expected %u bytes, got %u bytes", total_bytes_to_read, total_bytes_read);
+        return ESP_FAIL;
+    }
+    
     return ESP_OK;
 }
