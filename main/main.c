@@ -1,13 +1,19 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "i2s_audio.h"
 #include "gpio_button.h"
 #include "application.h"
 
 static const char *TAG = "MAIN";
 
 void app_main(void)
-{    
+{
+    if (i2s_audio_mic_init() != ESP_OK)
+    {
+        ESP_LOGE(TAG, "i2s_audio_mic_init()!");
+    }
+
     if (gpio_button_init() != ESP_OK)
     {
         ESP_LOGE(TAG, "gpio_button_init()!");
