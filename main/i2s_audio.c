@@ -26,7 +26,7 @@ esp_err_t i2s_audio_mic_init()
 
     i2s_std_config_t std_cfg = {
         .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(I2S_AUDIO_MIC_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
+        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_AUDIO_MIC_BIT_WIDTH, I2S_AUDIO_MIC_SLOT_MODE),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = I2S_AUDIO_MIC_GPIO_SCK,
@@ -36,7 +36,6 @@ esp_err_t i2s_audio_mic_init()
         },
     };
     check_esp_err(i2s_channel_init_std_mode(rx_handle, &std_cfg), "i2s_channel_init_std_mode_rx");
-    //check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
     ESP_LOGI(TAG, "i2s_audio_mic_init() Success!");
     return ESP_OK;
 }
@@ -48,82 +47,50 @@ esp_err_t i2s_audio_spk_init()
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(I2S_AUDIO_SPK_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
+        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_AUDIO_SPK_BIT_WIDTH, I2S_AUDIO_SPK_SLOT_MODE),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = I2S_AUDIO_SPK_GPIO_BCLK, // GPIO15
-            .ws = I2S_AUDIO_SPK_GPIO_LRCK,   // GPIO16
-            .dout = I2S_AUDIO_SPK_GPIO_DOUT, // GPIO7
+            .bclk = I2S_AUDIO_SPK_GPIO_BCLK,
+            .ws = I2S_AUDIO_SPK_GPIO_LRCK,
+            .dout = I2S_AUDIO_SPK_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
         },
     };
 
     check_esp_err(i2s_channel_init_std_mode(tx_handle, &std_cfg), "i2s_channel_init_std_mode_tx");
-    //check_esp_err(i2s_channel_enable(tx_handle), "i2s_channel_enable_tx");
     ESP_LOGI(TAG, "i2s_audio_spk_init() Success!");
     return ESP_OK;
 }
 
 esp_err_t i2s_audio_read_pcm24_data(int32_t *buffer, int samples)
 {
-    esp_err_t ret = ESP_OK;
     size_t bytes_read = 0;
-    size_t bytes_to_read = samples * 4;
+    size_t bytes_to_read = (size_t)samples * sizeof(int32_t);
 
-    ret = i2s_channel_enable(rx_handle);
-    if (ret != ESP_OK)
+    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
+    check_esp_err(i2s_channel_read(rx_handle, buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000)), "i2s_channel_read");
+    if (bytes_read != bytes_to_read)
     {
-        ESP_LOGE(TAG, "I2S Enable failed: %d", ret);
-    }
-
-    ret = i2s_channel_read(rx_handle, buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000));
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "I2S read failed at block, error %d", ret);
-        return ret;
-    }
-    if (bytes_read != bytes_to_read) {
-        ESP_LOGW(TAG, "Read partial data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
+        ESP_LOGW(TAG, "Read data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
         return ESP_FAIL; 
     }
-
-    ret = i2s_channel_disable(rx_handle);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "I2S Disable failed: %d", ret);
-    }
+    check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
     return ESP_OK;
 }
 
 esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
 {
-    esp_err_t ret = ESP_OK;
     size_t bytes_written = 0;
     size_t size_bytes = (size_t)samples * sizeof(int32_t);
 
-    ret = i2s_channel_enable(tx_handle);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "I2S Enable failed: %d", ret);
-    }
-
-    ret = i2s_channel_write(tx_handle, (const void *)buffer, size_bytes, &bytes_written, pdMS_TO_TICKS(1000));
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "I2S write failed with error: %d", ret);
-        return ret;
-    }
+    check_esp_err(i2s_channel_enable(tx_handle), "i2s_channel_enable_tx");
+    check_esp_err(i2s_channel_write(tx_handle, (const void *)buffer, size_bytes, &bytes_written, pdMS_TO_TICKS(1000)), "i2s_channel_write");
     if (bytes_written != size_bytes)
     {
-        ESP_LOGW(TAG, "Partial write warning: Wrote %u bytes, expected %u bytes.", 
-                 (unsigned int)bytes_written, (unsigned int)size_bytes);
+        ESP_LOGW(TAG, "Write data: Wrote %u bytes, expected %u bytes.", bytes_written, size_bytes);
         return ESP_FAIL; 
     }
-
-    ret = i2s_channel_disable(tx_handle);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "I2S Disable failed: %d", ret);
-    }
+    check_esp_err(i2s_channel_disable(tx_handle), "i2s_channel_disable_tx");
     return ESP_OK;
 }
 
