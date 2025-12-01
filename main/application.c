@@ -4,6 +4,7 @@
 #include "i2s_audio.h"
 #include "wav_audio.h"
 #include "gpio_button.h"
+#include "network_socket.h"
 
 static const char *TAG = "APPLICATION";
 
@@ -33,6 +34,11 @@ void application_button_down_callback(uint8_t gpio_num)
     ESP_LOGW(TAG, ">>> Button Down (GPIO %d) Pressed! - Executing action C.", gpio_num);
     i2s_audio_play_pcm16_data(pcm16_data, count);
     ESP_LOGI(TAG, "Success playing %d samples!", count);
+    network_socket_data_publish(buffer, WAV_AUDIO_DEFAULT_FILE_SIZE);
+    ESP_LOGI(TAG, "Success sending %d samples!", count);
+    for (int i = 0; i < 1000; i++)
+        ESP_LOGW(TAG, "%02x %02x %02x %02x %02x %02x %02x %02x", buffer[i*8], buffer[i*8 + 1], buffer[i*8 + 2], 
+            buffer[i*8 + 3], buffer[i*8 + 4], buffer[i*8 + 5], buffer[i*8 + 6], buffer[i*8 + 7]);
 }
 
 esp_err_t application_init(void)
