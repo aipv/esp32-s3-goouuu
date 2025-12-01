@@ -10,9 +10,6 @@ static const char *TAG = "I2S_AUDIO";
 static i2s_chan_handle_t rx_handle = NULL;
 static i2s_chan_handle_t tx_handle = NULL;
 
-static int32_t rx_buffer[I2S_AUDIO_SAMPLE_COUNT];
-static int16_t pcm16_buf[I2S_AUDIO_SAMPLE_COUNT];
-
 // ================== 错误检查 ==================
 static void check_esp_err(esp_err_t err, const char* msg)
 {
@@ -67,39 +64,6 @@ esp_err_t i2s_audio_spk_init()
     return ESP_OK;
 }
 
-esp_err_t i2s_audio_read_test_data()
-{
-    esp_err_t ret = ESP_OK;
-    size_t bytes_read;
-
-    ret = i2s_channel_enable(rx_handle);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "I2S Enable failed: %d", ret);
-    }
-
-    ret = i2s_channel_read(rx_handle, rx_buffer, sizeof(rx_buffer), &bytes_read, pdMS_TO_TICKS(1000));
-    int total_samples = bytes_read / 4;
-    ESP_LOGI(TAG, "i2s_channel_read() : %d, %d, %d, %d!", sizeof(rx_buffer), bytes_read, total_samples, ret);
-
-    for (int i = 0; i < total_samples; i++)
-    {
-        pcm16_buf[i] = rx_buffer[i*2] >> 8; // 24bit -> 16bit
-    }
-
-    ret = i2s_channel_disable(rx_handle);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "I2S Disable failed: %d", ret);
-    }
-
-    ESP_LOGI(TAG, "%ld %ld %ld %ld %ld %ld %ld %ld", rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3],
-        rx_buffer[4], rx_buffer[5], rx_buffer[6], rx_buffer[7]);
-    ESP_LOGI(TAG, "%d %d %d %d %d %d %d %d", pcm16_buf[0], pcm16_buf[1], pcm16_buf[2], pcm16_buf[3],
-        pcm16_buf[4], pcm16_buf[5], pcm16_buf[6], pcm16_buf[7]);
-    return ESP_OK;
-}
-
 esp_err_t i2s_audio_read_pcm24_data(int32_t *buffer, int samples)
 {
     esp_err_t ret = ESP_OK;
@@ -142,10 +106,7 @@ esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
         ESP_LOGE(TAG, "I2S Enable failed: %d", ret);
     }
 
-    ESP_LOGI(TAG, "Input %d, %d", samples, size_bytes);
     ret = i2s_channel_write(tx_handle, (const void *)buffer, size_bytes, &bytes_written, pdMS_TO_TICKS(1000));
-    ESP_LOGI(TAG, "Output %d, %d", bytes_written, ret);
-
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "I2S write failed with error: %d", ret);
@@ -163,5 +124,15 @@ esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
     {
         ESP_LOGE(TAG, "I2S Disable failed: %d", ret);
     }
+    return ESP_OK;
+}
+
+esp_err_t i2s_audio_test_pcm24_data(int32_t *buffer, int samples)
+{
+    ESP_LOGI(TAG, "Recording........");
+    i2s_audio_read_pcm24_data(buffer, samples);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGI(TAG, "Palying........");
+    i2s_audio_play_pcm24_data(buffer, samples);
     return ESP_OK;
 }

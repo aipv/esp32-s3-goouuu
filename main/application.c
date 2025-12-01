@@ -6,26 +6,28 @@
 
 static const char *TAG = "APPLICATION";
 
-int32_t buffer[65536];
+static int32_t buffer[65536];
+static size_t count = 65536;
 
 void application_button_boot_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Boot (GPIO %d) Pressed! - Executing action A.", gpio_num);
-    i2s_audio_read_pcm24_data(buffer, 65536);
-    ESP_LOGI(TAG, "%d %d %d %d %d %d %d %d", buffer[0], buffer[1], buffer[2], buffer[3],
-        buffer[4], buffer[5], buffer[6], buffer[7]);
+    i2s_audio_read_pcm24_data(buffer, count);
+    ESP_LOGI(TAG, "Success reading %d samples!", count);
 }
 
 void application_button_up_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Up (GPIO %d) Pressed! - Executing action B.", gpio_num);
-    i2s_audio_read_test_data();
+    i2s_audio_test_pcm24_data(buffer, count);
+    ESP_LOGI(TAG, "Success testing %d samples!", count);
 }
 
 void application_button_down_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Down (GPIO %d) Pressed! - Executing action C.", gpio_num);
-    i2s_audio_play_pcm24_data(buffer, 65536);
+    i2s_audio_play_pcm24_data(buffer, count);
+    ESP_LOGI(TAG, "Success playing %d samples!", count);
 }
 
 esp_err_t application_init(void)
