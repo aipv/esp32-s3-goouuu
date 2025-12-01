@@ -9,14 +9,19 @@ static const char *TAG = "MAIN";
 
 void app_main(void)
 {
+    if (gpio_button_init() != ESP_OK)
+    {
+        ESP_LOGE(TAG, "gpio_button_init()!");
+    }
+
     if (i2s_audio_mic_init() != ESP_OK)
     {
         ESP_LOGE(TAG, "i2s_audio_mic_init()!");
     }
 
-    if (gpio_button_init() != ESP_OK)
+    if (i2s_audio_spk_init() != ESP_OK)
     {
-        ESP_LOGE(TAG, "gpio_button_init()!");
+        ESP_LOGE(TAG, "i2s_audio_mic_init()!");
     }
 
     if (application_init() != ESP_OK)
