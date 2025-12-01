@@ -22,6 +22,30 @@ static uint64_t last_press_time_ms[5] = {0};
 // Debounce time in milliseconds
 #define DEBOUNCE_TIME_MS 50
 
+typedef void (*button_callback_t)(uint8_t gpio_num);
+void gpio_button_0_callback(uint8_t gpio_num)
+{
+    ESP_LOGW(TAG, ">>> Button 0 (GPIO %d) Pressed! - Executing action A.", gpio_num);
+}
+
+void gpio_button_1_callback(uint8_t gpio_num)
+{
+    ESP_LOGW(TAG, ">>> Button 1 (GPIO %d) Pressed! - Executing action B.", gpio_num);
+}
+
+void gpio_button_2_callback(uint8_t gpio_num)
+{
+    ESP_LOGW(TAG, ">>> Button 2 (GPIO %d) Pressed! - Executing action C.", gpio_num);
+}
+
+button_callback_t gpio_callback_func[3] =
+{
+    gpio_button_0_callback,
+    gpio_button_1_callback,
+    gpio_button_2_callback
+};
+
+
 /**
  * @brief GPIO Interrupt Service Routine (ISR)
  * NOTE: This runs in an interrupt context (high priority), keep it short!
@@ -74,18 +98,13 @@ static void gpio_button_task(void* arg)
             current_time_ms = esp_timer_get_time() / 1000;
             
             // Check if enough time has passed since the last stable press for this button
-            if (current_time_ms - last_press_time_ms[button_index] > DEBOUNCE_TIME_MS) {
-                
+            if (current_time_ms - last_press_time_ms[button_index] > DEBOUNCE_TIME_MS)
+            {
                 // 3. Final Check (Reading the GPIO again in the task context)
                 // This confirms the state is still active after the delay.
-                if (gpio_get_level(event.gpio_num) == BUTTON_PRESSED) {
-                    
-                    // Button press is valid (debounced and stable)!
-                    ESP_LOGI(TAG, "Button %d (GPIO %d) Pressed!", button_index, event.gpio_num);
-                    
-                    // *** YOUR BUTTON LOGIC GOES HERE ***
-                    // e.g., Update a state machine, toggle an LED, etc.
-                    
+                if (gpio_get_level(event.gpio_num) == BUTTON_PRESSED)
+                {
+                    gpio_callback_func[button_index](event.gpio_num);
                     // Update the stable press time
                     last_press_time_ms[button_index] = current_time_ms;
                 }
@@ -122,7 +141,6 @@ esp_err_t gpio_button_init(void)
         // 4. Hook the ISR to the specific GPIO pin
         gpio_isr_handler_add(button_gpios[i], gpio_isr_handler, (void*) button_gpios[i]);
     }
-    
     // 5. Create the processing task
     xTaskCreate(gpio_button_task, "button_task", 4096, NULL, 10, NULL);
     
