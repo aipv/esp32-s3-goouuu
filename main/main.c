@@ -7,9 +7,12 @@ static const char *TAG = "MAIN";
 
 void app_main(void)
 {    
-    if (gpio_button_init() != ESP_OK) {
+    if (gpio_button_init() != ESP_OK)
+    {
         ESP_LOGE(TAG, "gpio_button_init()!");
     }
+
+    gpio_button_start();
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(5000));

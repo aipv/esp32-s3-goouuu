@@ -12,13 +12,11 @@
 // The buttons are active-low (connected to GND, pulled high by internal resistor)
 #define BUTTON_PRESSED 0
 
-// Structure for the event queue
-typedef struct {
-    uint8_t gpio_num;
-    uint32_t press_time_ms;
-} button_event_t;
+typedef void (*button_callback_t)(uint8_t gpio_num);
 
 // Initialize all button GPIOs and start the gpio button task
 esp_err_t gpio_button_init(void);
+esp_err_t gpio_button_start(void);
+esp_err_t gpio_button_set_callback_func(void);
 
 #endif // GPIO_BUTTON_H

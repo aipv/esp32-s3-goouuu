@@ -22,27 +22,32 @@ static uint64_t last_press_time_ms[5] = {0};
 // Debounce time in milliseconds
 #define DEBOUNCE_TIME_MS 50
 
-typedef void (*button_callback_t)(uint8_t gpio_num);
-void gpio_button_0_callback(uint8_t gpio_num)
+// Structure for the event queue
+typedef struct {
+    uint8_t gpio_num;
+    uint32_t press_time_ms;
+} button_event_t;
+
+void gpio_button_0_default_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button 0 (GPIO %d) Pressed! - Executing action A.", gpio_num);
 }
 
-void gpio_button_1_callback(uint8_t gpio_num)
+void gpio_button_1_default_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button 1 (GPIO %d) Pressed! - Executing action B.", gpio_num);
 }
 
-void gpio_button_2_callback(uint8_t gpio_num)
+void gpio_button_2_default_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button 2 (GPIO %d) Pressed! - Executing action C.", gpio_num);
 }
 
 button_callback_t gpio_callback_func[3] =
 {
-    gpio_button_0_callback,
-    gpio_button_1_callback,
-    gpio_button_2_callback
+    gpio_button_0_default_callback,
+    gpio_button_1_default_callback,
+    gpio_button_2_default_callback
 };
 
 
@@ -141,7 +146,11 @@ esp_err_t gpio_button_init(void)
         // 4. Hook the ISR to the specific GPIO pin
         gpio_isr_handler_add(button_gpios[i], gpio_isr_handler, (void*) button_gpios[i]);
     }
-    // 5. Create the processing task
+    return ESP_OK;
+}
+
+esp_err_t gpio_button_start(void)
+{
     xTaskCreate(gpio_button_task, "button_task", 4096, NULL, 10, NULL);
     
     return ESP_OK;
