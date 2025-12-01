@@ -62,6 +62,61 @@ esp_err_t i2s_audio_spk_init()
     return ESP_OK;
 }
 
+esp_err_t i2s_audio_read_pcm16_data(int16_t *buffer, int samples)
+{
+    size_t bytes_read = 0;
+    size_t bytes_to_read = (size_t)samples * sizeof(int16_t);
+
+    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
+    check_esp_err(i2s_channel_read(rx_handle, buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000)), "i2s_channel_read");
+    if (bytes_read != bytes_to_read)
+    {
+        ESP_LOGW(TAG, "Read data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
+        return ESP_FAIL;
+    }
+    check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
+    return ESP_OK;
+}
+
+esp_err_t i2s_audio_play_pcm16_data(int16_t *buffer, int samples)
+{
+    size_t bytes_written = 0;
+    size_t size_bytes = (size_t)samples * sizeof(int16_t);
+
+    check_esp_err(i2s_channel_enable(tx_handle), "i2s_channel_enable_tx");
+    check_esp_err(i2s_channel_write(tx_handle, (const void *)buffer, size_bytes, &bytes_written, pdMS_TO_TICKS(1000)), "i2s_channel_write");
+    if (bytes_written != size_bytes)
+    {
+        ESP_LOGW(TAG, "Write data: Wrote %u bytes, expected %u bytes.", bytes_written, size_bytes);
+        return ESP_FAIL;
+    }
+    check_esp_err(i2s_channel_disable(tx_handle), "i2s_channel_disable_tx");
+    return ESP_OK;
+}
+
+esp_err_t i2s_audio_dual_pcm16_data(int16_t *buffer, int samples)
+{
+    for (int i = 0; i < samples; i+=2)
+    {
+        buffer[i+1] = buffer[i];
+    }
+    return ESP_OK;
+}
+
+esp_err_t i2s_audio_test_pcm16_data(int16_t *buffer, int samples)
+{
+    ESP_LOGI(TAG, "Recording........");
+    i2s_audio_read_pcm16_data(buffer, samples);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGI(TAG, "Processing........");
+    i2s_audio_dual_pcm16_data(buffer, samples);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGI(TAG, "Palying........");
+    i2s_audio_play_pcm16_data(buffer, samples);
+    return ESP_OK;
+}
+
+
 esp_err_t i2s_audio_read_pcm24_data(int32_t *buffer, int samples)
 {
     size_t bytes_read = 0;
@@ -72,7 +127,7 @@ esp_err_t i2s_audio_read_pcm24_data(int32_t *buffer, int samples)
     if (bytes_read != bytes_to_read)
     {
         ESP_LOGW(TAG, "Read data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
-        return ESP_FAIL; 
+        return ESP_FAIL;
     }
     check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
     return ESP_OK;
@@ -88,7 +143,7 @@ esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
     if (bytes_written != size_bytes)
     {
         ESP_LOGW(TAG, "Write data: Wrote %u bytes, expected %u bytes.", bytes_written, size_bytes);
-        return ESP_FAIL; 
+        return ESP_FAIL;
     }
     check_esp_err(i2s_channel_disable(tx_handle), "i2s_channel_disable_tx");
     return ESP_OK;
