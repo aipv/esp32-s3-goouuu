@@ -37,3 +37,16 @@ esp_err_t wav_audio_default_header(char *buffer)
     memcpy(buffer, default_header, WAV_AUDIO_HEADER_SIZE);
     return ESP_OK;
 }
+
+esp_err_t wav_audio_data_process(char *input, char *output)
+{
+    int32_t *iptr = (int32_t *)(input);
+    int16_t *optr = (int16_t *)(output + WAV_AUDIO_HEADER_SIZE);
+    for (int i = 0; i < WAV_AUDIO_DEFAULT_SAMPLE; i++)
+    {
+        int32_t value = iptr[i] >> 12;
+        optr[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
+    }
+    memcpy(output, default_header, WAV_AUDIO_HEADER_SIZE);
+    return ESP_OK;
+}

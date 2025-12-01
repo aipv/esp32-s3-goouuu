@@ -25,14 +25,39 @@ esp_err_t i2s_audio_mic_init()
     check_esp_err(i2s_new_channel(&chan_cfg, NULL, &rx_handle), "i2s_new_channel_rx");
 
     i2s_std_config_t std_cfg = {
-        .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(I2S_AUDIO_MIC_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_AUDIO_MIC_BIT_WIDTH, I2S_AUDIO_MIC_SLOT_MODE),
+        .clk_cfg = {
+            .sample_rate_hz = (uint32_t)I2S_AUDIO_MIC_SAMPLE_RATE,
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+            #ifdef   I2S_HW_VERSION_2
+                .ext_clk_freq_hz = 0,
+            #endif
+        },
+        .slot_cfg = {
+            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
+            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+            .slot_mode = I2S_SLOT_MODE_MONO,
+            .slot_mask = I2S_STD_SLOT_LEFT,
+            .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
+            .ws_pol = false,
+            .bit_shift = true,
+            #ifdef   I2S_HW_VERSION_2
+                .left_align = true,
+                .big_endian = false,
+                .bit_order_lsb = false
+            #endif
+        },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = I2S_AUDIO_MIC_GPIO_SCK,
             .ws   = I2S_AUDIO_MIC_GPIO_WS,
             .dout = I2S_GPIO_UNUSED,
             .din  = I2S_AUDIO_MIC_GPIO_DIN,
+            .invert_flags = {
+                .mclk_inv = false,
+                .bclk_inv = false,
+                .ws_inv = false
+            }
         },
     };
     check_esp_err(i2s_channel_init_std_mode(rx_handle, &std_cfg), "i2s_channel_init_std_mode_rx");
@@ -46,14 +71,39 @@ esp_err_t i2s_audio_spk_init()
     check_esp_err(i2s_new_channel(&chan_cfg, &tx_handle, NULL), "i2s_new_channel_tx");
 
     i2s_std_config_t std_cfg = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(I2S_AUDIO_SPK_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_AUDIO_SPK_BIT_WIDTH, I2S_AUDIO_SPK_SLOT_MODE),
+        .clk_cfg = {
+            .sample_rate_hz = (uint32_t)I2S_AUDIO_SPK_SAMPLE_RATE,
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+            #ifdef   I2S_HW_VERSION_2
+                .ext_clk_freq_hz = 0,
+            #endif
+        },
+        .slot_cfg = {
+            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
+            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+            .slot_mode = I2S_SLOT_MODE_MONO,
+            .slot_mask = I2S_STD_SLOT_LEFT,
+            .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
+            .ws_pol = false,
+            .bit_shift = true,
+            #ifdef   I2S_HW_VERSION_2
+                .left_align = true,
+                .big_endian = false,
+                .bit_order_lsb = false
+            #endif
+        },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = I2S_AUDIO_SPK_GPIO_BCLK,
             .ws = I2S_AUDIO_SPK_GPIO_LRCK,
             .dout = I2S_AUDIO_SPK_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
+            .invert_flags = {
+                .mclk_inv = false,
+                .bclk_inv = false,
+                .ws_inv = false
+            }
         },
     };
 
@@ -108,9 +158,10 @@ esp_err_t i2s_audio_test_pcm16_data(int16_t *buffer, int samples)
     ESP_LOGI(TAG, "Recording........");
     i2s_audio_read_pcm16_data(buffer, samples);
     vTaskDelay(pdMS_TO_TICKS(1000));
-    ESP_LOGI(TAG, "Processing........");
-    i2s_audio_dual_pcm16_data(buffer, samples);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    for (int i = 0; i < 32; i++)
+        ESP_LOGW(TAG, "%d %d %d %d %d %d %d %d", buffer[i*8], buffer[i*8 + 1], buffer[i*8 + 2], 
+            buffer[i*8 + 3], buffer[i*8 + 4], buffer[i*8 + 5], buffer[i*8 + 6], buffer[i*8 + 7]);
+
     ESP_LOGI(TAG, "Palying........");
     i2s_audio_play_pcm16_data(buffer, samples);
     return ESP_OK;

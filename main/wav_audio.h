@@ -36,17 +36,18 @@ typedef struct {
 #define WAV_AUDIO_HEADER_SIZE           44
 #define WAV_AUDIO_CHUNK_SIZE            36
 #define WAV_AUDIO_SAMPLE_RATE 			16000
-#define WAV_AUDIO_DEFAULT_SAMPLE        65536
-#define WAV_AUDIO_DEFAULT_DATA_SIZE     131072
-#define WAV_AUDIO_DEFAULT_FILE_SIZE     131116
-#define WAV_AUDIO_DEFAULT_TRUNK_SIZE    131108
-#define WAV_AUDIO_NUM_OF_CHANNELS 		2
+#define WAV_AUDIO_DEFAULT_SAMPLE        32768
+#define WAV_AUDIO_DEFAULT_DATA_SIZE     65536
+#define WAV_AUDIO_DEFAULT_FILE_SIZE     65580
+#define WAV_AUDIO_DEFAULT_TRUNK_SIZE    65572
+#define WAV_AUDIO_NUM_OF_CHANNELS 		1
 #define WAV_PCM16_BITS_PER_SAMPLE       16
 #define WAV_PCM16_BYTE_PER_SMAPLE       2
-#define WAV_PCM16_BLOCK_ALIGN           4
-#define WAV_PCM16_BYTE_RATE             64000
+#define WAV_PCM16_BLOCK_ALIGN           2
+#define WAV_PCM16_BYTE_RATE             32000
 
 esp_err_t wav_audio_init(void);
 esp_err_t wav_audio_default_header(char *buffer);
+esp_err_t wav_audio_data_process(char *input, char *output);
 
 #endif // WAV_AUDIO_H
