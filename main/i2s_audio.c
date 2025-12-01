@@ -127,10 +127,22 @@ esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
     return ESP_OK;
 }
 
+esp_err_t i2s_audio_dual_pcm24_data(int32_t *buffer, int samples)
+{
+    for (int i = 0; i < samples; i+=2)
+    {
+        buffer[i+1] = buffer[i];
+    }
+    return ESP_OK;
+}
+
 esp_err_t i2s_audio_test_pcm24_data(int32_t *buffer, int samples)
 {
     ESP_LOGI(TAG, "Recording........");
     i2s_audio_read_pcm24_data(buffer, samples);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGI(TAG, "Processing........");
+    i2s_audio_dual_pcm24_data(buffer, samples);
     vTaskDelay(pdMS_TO_TICKS(1000));
     ESP_LOGI(TAG, "Palying........");
     i2s_audio_play_pcm24_data(buffer, samples);
