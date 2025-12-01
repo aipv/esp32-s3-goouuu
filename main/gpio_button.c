@@ -128,12 +128,15 @@ esp_err_t gpio_button_init(void)
 
 esp_err_t gpio_button_set_callback_func(int index, button_callback_t cbFunc)
 {
+    ESP_LOGI(TAG, "gpio_button_set_callback_func(%d).", index);
     if ((index >= 0) && (index < GPIO_BUTTON_NUM))
     {
         gpio_callback_func[index] = cbFunc;
-        ESP_LOGI(TAG, "gpio_button_set_callback_func(%d).");
     }
-    ESP_LOGW(TAG, "Invalid index when gpio_button_set_callback_func(%d).");
+    else
+    {
+        ESP_LOGW(TAG, "Invalid index when gpio_button_set_callback_func(%d).", index);
+    }
     return ESP_OK;
 }
 

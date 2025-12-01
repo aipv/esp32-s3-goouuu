@@ -2,6 +2,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "gpio_button.h"
+#include "application.h"
 
 static const char *TAG = "MAIN";
 
@@ -10,6 +11,11 @@ void app_main(void)
     if (gpio_button_init() != ESP_OK)
     {
         ESP_LOGE(TAG, "gpio_button_init()!");
+    }
+
+    if (application_init() != ESP_OK)
+    {
+        ESP_LOGE(TAG, "application_init()!");
     }
 
     gpio_button_start();
