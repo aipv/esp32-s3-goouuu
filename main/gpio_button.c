@@ -7,27 +7,6 @@
 
 static const char *TAG = "GPIO_BUTTON";
 
-// Queue handle for passing button events from the ISR to the task
-static QueueHandle_t button_event_queue = NULL;
-
-// Global array of button GPIOs
-static const gpio_num_t button_gpios[] = {
-    GPIO_BUTTON_0, GPIO_BUTTON_1, GPIO_BUTTON_2
-};
-static const int NUM_BUTTONS = sizeof(button_gpios) / sizeof(button_gpios[0]);
-
-// Global array to track the last time a button state was considered "stable"
-// This is critical for the software debouncing logic
-static uint64_t last_press_time_ms[5] = {0};
-// Debounce time in milliseconds
-#define DEBOUNCE_TIME_MS 50
-
-// Structure for the event queue
-typedef struct {
-    uint8_t gpio_num;
-    uint32_t press_time_ms;
-} button_event_t;
-
 void gpio_button_0_default_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button 0 (GPIO %d) Pressed! - Executing action A.", gpio_num);
@@ -43,13 +22,11 @@ void gpio_button_2_default_callback(uint8_t gpio_num)
     ESP_LOGW(TAG, ">>> Button 2 (GPIO %d) Pressed! - Executing action C.", gpio_num);
 }
 
-button_callback_t gpio_callback_func[3] =
-{
-    gpio_button_0_default_callback,
-    gpio_button_1_default_callback,
-    gpio_button_2_default_callback
-};
-
+static QueueHandle_t button_event_queue = NULL;
+static const gpio_num_t button_gpios[GPIO_BUTTON_NUM] = {GPIO_BUTTON_0, GPIO_BUTTON_1, GPIO_BUTTON_2};
+static uint64_t last_press_time_ms[GPIO_BUTTON_NUM] = {0};
+static button_callback_t gpio_callback_func[GPIO_BUTTON_NUM] =
+{gpio_button_0_default_callback, gpio_button_1_default_callback, gpio_button_2_default_callback};
 
 /**
  * @brief GPIO Interrupt Service Routine (ISR)
@@ -90,7 +67,7 @@ static void gpio_button_task(void* arg)
         if (xQueueReceive(button_event_queue, &event, portMAX_DELAY) == pdPASS) {
             
             // 1. Find the index of the button that generated the interrupt
-            for(int i = 0; i < NUM_BUTTONS; i++) {
+            for(int i = 0; i < GPIO_BUTTON_NUM; i++) {
                 if(button_gpios[i] == event.gpio_num) {
                     button_index = i;
                     break;
@@ -134,7 +111,7 @@ esp_err_t gpio_button_init(void)
     gpio_install_isr_service(0);
 
     // 3. Configure each button GPIO
-    for (int i = 0; i < NUM_BUTTONS; i++) {
+    for (int i = 0; i < GPIO_BUTTON_NUM; i++) {
         gpio_config_t io_conf = {};
         io_conf.intr_type = GPIO_INTR_NEGEDGE; // Trigger on falling edge (press)
         io_conf.mode = GPIO_MODE_INPUT;
@@ -148,6 +125,18 @@ esp_err_t gpio_button_init(void)
     }
     return ESP_OK;
 }
+
+esp_err_t gpio_button_set_callback_func(int index, button_callback_t cbFunc)
+{
+    if ((index >= 0) && (index < GPIO_BUTTON_NUM))
+    {
+        gpio_callback_func[index] = cbFunc;
+        ESP_LOGI(TAG, "gpio_button_set_callback_func(%d).");
+    }
+    ESP_LOGW(TAG, "Invalid index when gpio_button_set_callback_func(%d).");
+    return ESP_OK;
+}
+
 
 esp_err_t gpio_button_start(void)
 {
