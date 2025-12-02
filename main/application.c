@@ -10,7 +10,7 @@ static const char *TAG = "APPLICATION";
 
 #define APP_WAV_HEADER_SIZE        44
 
-static size_t count = 16384;
+static size_t count = 19200;
 static char data_buffer[131072];
 static char send_buffer[65580];
 int32_t *pcm_data = (int32_t *)(data_buffer);
