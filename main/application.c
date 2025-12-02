@@ -62,7 +62,7 @@ void application_button_boot_callback(uint8_t gpio_num)
 void application_button_up_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Up (GPIO %d) Pressed! - Executing action B.", gpio_num);
-    i2s_audio_play_pcm24_data(pcm_data, count);
+    i2s_audio_recoard_data(19200);
     ESP_LOGI(TAG, "Success played %d samples!", count);
 }
 

@@ -35,5 +35,6 @@ esp_err_t i2s_audio_dual_pcm24_data(int32_t *buffer, int samples);
 esp_err_t i2s_audio_test_pcm24_data(int32_t *buffer, int samples);
 
 esp_err_t i2s_audio_read_data_safe(int32_t *buffer, int total_samples);
+esp_err_t i2s_audio_recoard_data(int num_of_buffer);
 
 #endif // I2S_AUDIO_H

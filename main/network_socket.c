@@ -61,8 +61,6 @@ int network_socket_send(const void *data, size_t len)
         // TCP 通常会保证发送完整，但仍需检查
         ESP_LOGW(TAG, "Warning: Expected %zu bytes, but sent %d bytes.", len, bytes_sent);
     }
-    
-    ESP_LOGI(TAG, "Data sent successfully: %d bytes.", bytes_sent);
     return bytes_sent;
 }
 

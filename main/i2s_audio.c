@@ -4,11 +4,17 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "i2s_audio.h"
+#include "network_socket.h"
 
 static const char *TAG = "I2S_AUDIO";
 
+#define I2S_AUDIO_RECORD_BUFFER         1024
+
 static i2s_chan_handle_t rx_handle = NULL;
 static i2s_chan_handle_t tx_handle = NULL;
+TaskHandle_t recording_task_handle = NULL;
+int32_t  i2s_audio_buffer[I2S_AUDIO_RECORD_BUFFER];
+int32_t  i2s_audio_record_num_of_buffer = 960;
 
 // ================== 错误检查 ==================
 static void check_esp_err(esp_err_t err, const char* msg)
@@ -299,5 +305,64 @@ cleanup:
         return ESP_FAIL;
     }
     
+    return ESP_OK;
+}
+
+void i2s_audio_data_stream_task(void *arg)
+{
+    size_t bytes_read = 0;
+    size_t bytes_sent = 0;
+    size_t bytes_to_read = I2S_AUDIO_RECORD_BUFFER * sizeof(int32_t);
+
+    if (network_socket_init() < 0)
+    {
+        ESP_LOGE(TAG, "Failed to connect to host.");
+        recording_task_handle = NULL;
+        vTaskDelete(NULL);
+        return;
+    }
+    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
+
+    for (int i = 0; i < i2s_audio_record_num_of_buffer; i++)
+    {
+        check_esp_err(i2s_channel_read(rx_handle, i2s_audio_buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000)), "i2s_channel_read");
+        if (bytes_read != bytes_to_read)
+        {
+            ESP_LOGE(TAG, "Read data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
+            recording_task_handle = NULL;
+            vTaskDelete(NULL);
+            return;
+        }
+        bytes_sent = network_socket_send(i2s_audio_buffer, bytes_read);
+        if (bytes_sent != bytes_read)
+        {
+            ESP_LOGE(TAG, "Send data: expected %u bytes, sent %u bytes", bytes_read, bytes_sent);
+            recording_task_handle = NULL;
+            vTaskDelete(NULL);
+            return;
+        }
+        if ((i % 100) == 0)
+            ESP_LOGI(TAG, "Succcessfully sent %d samples!", i * 102400 + 1);
+    }
+
+    check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
+    network_socket_close();
+
+    recording_task_handle = NULL;
+    vTaskDelete(NULL);
+}
+
+esp_err_t i2s_audio_recoard_data(int num_of_buffer)
+{
+    if (recording_task_handle == NULL)
+    {
+        ESP_LOGI(TAG, "I2S Audio start recording task.....");
+        i2s_audio_record_num_of_buffer = num_of_buffer;
+        xTaskCreate(i2s_audio_data_stream_task, "RecordTask", 4096, NULL, 5, &recording_task_handle);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "I2S Audio recording is already running.....");
+    }
     return ESP_OK;
 }
