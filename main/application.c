@@ -13,8 +13,8 @@ static const char *TAG = "APPLICATION";
 static size_t count = 19200;
 static char data_buffer[131072];
 static char send_buffer[65580];
-int32_t *pcm_data = (int32_t *)(data_buffer);
-int16_t *pcm16_data = (int16_t *)(send_buffer + 44);
+static int32_t *pcm_data = (int32_t *)(data_buffer);
+static int16_t *pcm16_data = (int16_t *)(send_buffer);
 
 void application_create_wav_audio_header(int count, char *output)
 {
@@ -53,26 +53,26 @@ void application_audio_data_process(int count, char *input, char *output)
 void application_button_boot_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Boot (GPIO %d) Pressed! - Executing action A.", gpio_num);
-    i2s_audio_read_data_safe(pcm_data, count);
-    ESP_LOGI(TAG, "Success recorded %d samples!", count);
-    i2s_audio_play_pcm24_data(pcm_data, count);
-    ESP_LOGI(TAG, "Success played %d samples!", count);
+    i2s_audio_read_data(pcm_data, count);
+    ESP_LOGI(TAG, "Success read %d samples!", count);
+    i2s_audio_play_data(pcm_data, count);
+    ESP_LOGI(TAG, "Success play %d samples!", count);
+    i2s_audio_convert_data(pcm_data, pcm16_data, count);
+    ESP_LOGI(TAG, "Success convert %d samples!", count);
+    network_socket_data_publish(pcm16_data, count * 2);
+    ESP_LOGI(TAG, "Success send %d bytes!", count * 2);
 }
 
 void application_button_up_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Up (GPIO %d) Pressed! - Executing action B.", gpio_num);
-    i2s_audio_recoard_data(19200);
-    ESP_LOGI(TAG, "Success played %d samples!", count);
+    i2s_audio_stream_data(0);
 }
 
 void application_button_down_callback(uint8_t gpio_num)
 {
     ESP_LOGW(TAG, ">>> Button Down (GPIO %d) Pressed! - Executing action C.", gpio_num);
-    application_audio_data_process(count, data_buffer, send_buffer);
-    application_create_wav_audio_header(count, send_buffer);
-    network_socket_data_publish(send_buffer, count * 2 + 44);
-    ESP_LOGI(TAG, "Success sent %d bytes!", count * 2 + 44);
+    i2s_audio_stream_data(1);
 }
 
 esp_err_t application_init(void)

@@ -8,13 +8,14 @@
 
 static const char *TAG = "I2S_AUDIO";
 
-#define I2S_AUDIO_RECORD_BUFFER         1024
-
 static i2s_chan_handle_t rx_handle = NULL;
 static i2s_chan_handle_t tx_handle = NULL;
-TaskHandle_t recording_task_handle = NULL;
-int32_t  i2s_audio_buffer[I2S_AUDIO_RECORD_BUFFER];
-int32_t  i2s_audio_record_num_of_buffer = 960;
+
+static int16_t  i2s_audio_pcm16_buffer[I2S_AUDIO_BUFFER_SAMPLES];
+static int32_t  i2s_audio_raw_buffer[I2S_AUDIO_BUFFER_SAMPLES];
+static int32_t  i2s_audio_data_stream_flag = false;
+static int32_t  i2s_audio_data_convert_flag = false;
+static TaskHandle_t i2s_audio_stream_task_handle = NULL;
 
 // ================== 错误检查 ==================
 static void check_esp_err(esp_err_t err, const char* msg)
@@ -126,63 +127,17 @@ esp_err_t i2s_audio_spk_init()
     return ESP_OK;
 }
 
-esp_err_t i2s_audio_read_pcm16_data(int16_t *buffer, int samples)
+esp_err_t i2s_audio_convert_data(int32_t *input, int16_t *output, int samples)
 {
-    size_t bytes_read = 0;
-    size_t bytes_to_read = (size_t)samples * sizeof(int16_t);
-
-    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
-    check_esp_err(i2s_channel_read(rx_handle, buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000)), "i2s_channel_read");
-    if (bytes_read != bytes_to_read)
+    for (int i = 0; i < samples; i++)
     {
-        ESP_LOGW(TAG, "Read data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
-        return ESP_FAIL;
-    }
-    check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
-    return ESP_OK;
-}
-
-esp_err_t i2s_audio_play_pcm16_data(int16_t *buffer, int samples)
-{
-    size_t bytes_written = 0;
-    size_t size_bytes = (size_t)samples * sizeof(int16_t);
-
-    check_esp_err(i2s_channel_enable(tx_handle), "i2s_channel_enable_tx");
-    check_esp_err(i2s_channel_write(tx_handle, (const void *)buffer, size_bytes, &bytes_written, pdMS_TO_TICKS(1000)), "i2s_channel_write");
-    if (bytes_written != size_bytes)
-    {
-        ESP_LOGW(TAG, "Write data: Wrote %u bytes, expected %u bytes.", bytes_written, size_bytes);
-        return ESP_FAIL;
-    }
-    check_esp_err(i2s_channel_disable(tx_handle), "i2s_channel_disable_tx");
-    return ESP_OK;
-}
-
-esp_err_t i2s_audio_dual_pcm16_data(int16_t *buffer, int samples)
-{
-    for (int i = 0; i < samples; i+=2)
-    {
-        buffer[i+1] = buffer[i];
+        int32_t value = input[i] >> 12;
+        output[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
     }
     return ESP_OK;
 }
 
-esp_err_t i2s_audio_test_pcm16_data(int16_t *buffer, int samples)
-{
-    ESP_LOGI(TAG, "Recording........");
-    i2s_audio_read_pcm16_data(buffer, samples);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    for (int i = 0; i < 32; i++)
-        ESP_LOGW(TAG, "%d %d %d %d %d %d %d %d", buffer[i*8], buffer[i*8 + 1], buffer[i*8 + 2], 
-            buffer[i*8 + 3], buffer[i*8 + 4], buffer[i*8 + 5], buffer[i*8 + 6], buffer[i*8 + 7]);
-
-    ESP_LOGI(TAG, "Palying........");
-    i2s_audio_play_pcm16_data(buffer, samples);
-    return ESP_OK;
-}
-
-
-esp_err_t i2s_audio_read_pcm24_data(int32_t *buffer, int samples)
+esp_err_t i2s_audio_read_data(int32_t *buffer, int samples)
 {
     size_t bytes_read = 0;
     size_t bytes_to_read = (size_t)samples * sizeof(int32_t);
@@ -198,7 +153,7 @@ esp_err_t i2s_audio_read_pcm24_data(int32_t *buffer, int samples)
     return ESP_OK;
 }
 
-esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
+esp_err_t i2s_audio_play_data(int32_t *buffer, int samples)
 {
     size_t bytes_written = 0;
     size_t size_bytes = (size_t)samples * sizeof(int32_t);
@@ -214,155 +169,78 @@ esp_err_t i2s_audio_play_pcm24_data(int32_t *buffer, int samples)
     return ESP_OK;
 }
 
-esp_err_t i2s_audio_dual_pcm24_data(int32_t *buffer, int samples)
-{
-    for (int i = 0; i < samples; i+=2)
-    {
-        buffer[i+1] = buffer[i];
-    }
-    return ESP_OK;
-}
-
-esp_err_t i2s_audio_test_pcm24_data(int32_t *buffer, int samples)
-{
-    ESP_LOGI(TAG, "Recording........");
-    i2s_audio_read_pcm24_data(buffer, samples);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    ESP_LOGI(TAG, "Processing........");
-    i2s_audio_dual_pcm24_data(buffer, samples);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    ESP_LOGI(TAG, "Palying........");
-    i2s_audio_play_pcm24_data(buffer, samples);
-    return ESP_OK;
-}
-
-#define I2S_READ_CHUNK_SAMPLES 1024 // 每次读取 1024 个样本 (4KB)
-
-/**
- * @brief 安全地循环读取指定总数的 I2S 数据样本。
- * * @param buffer 指向已分配好完整内存（例如 256KB）的目标缓冲区。
- * @param total_samples 需要读取的样本总数（例如 65536）。
- * @return esp_err_t 
- */
-esp_err_t i2s_audio_read_data_safe(int32_t *buffer, int total_samples)
-{
-    esp_err_t ret = ESP_OK;
-    size_t total_bytes_to_read = (size_t)total_samples * sizeof(int32_t);
-    size_t total_bytes_read = 0;
-    int32_t *current_ptr = buffer; // 当前写入位置
-
-    // 1. 在读取开始时启用 I2S 通道
-    ret = i2s_channel_enable(rx_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "i2s_channel_enable_rx failed: %s", esp_err_to_name(ret));
-        return ret;
-    }
-
-    // 2. 循环读取，直到达到总目标字节数
-    while (total_bytes_read < total_bytes_to_read) {
-        size_t bytes_left = total_bytes_to_read - total_bytes_read;
-        
-        // 确定本次需要读取的字节数（取剩余字节数和 CHUNK_SIZE 中的较小值）
-        size_t bytes_to_read_this_chunk = (bytes_left > I2S_READ_CHUNK_SAMPLES * sizeof(int32_t)) 
-                                         ? I2S_READ_CHUNK_SAMPLES * sizeof(int32_t) 
-                                         : bytes_left;
-        size_t bytes_read_this_chunk = 0;
-
-        // 设置一个较短的超时时间（例如 500ms），防止长时间阻塞
-        ret = i2s_channel_read(
-            rx_handle, 
-            current_ptr, // 写入当前位置
-            bytes_to_read_this_chunk, 
-            &bytes_read_this_chunk, 
-            pdMS_TO_TICKS(500)
-        );
-        
-        // 检查读取错误
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "i2s_channel_read failed at byte %u: %s", total_bytes_read, esp_err_to_name(ret));
-            goto cleanup;
-        }
-
-        // 检查是否读到预期字节数（超时可能导致读到的字节数少于请求）
-        if (bytes_read_this_chunk < bytes_to_read_this_chunk) {
-            ESP_LOGW(TAG, "Incomplete read: expected %u, got %u. Stopping read.", bytes_to_read_this_chunk, bytes_read_this_chunk);
-            total_bytes_read += bytes_read_this_chunk;
-            break; // 停止读取
-        }
-
-        // 更新总进度和写入指针
-        total_bytes_read += bytes_read_this_chunk;
-        current_ptr += (bytes_read_this_chunk / sizeof(int32_t)); 
-    }
-
-cleanup:
-    // 3. 在读取结束后禁用 I2S 通道
-    i2s_channel_disable(rx_handle);
-
-    // 4. 最终检查是否读取完整
-    if (total_bytes_read != total_bytes_to_read) {
-        ESP_LOGW(TAG, "Final read incomplete: expected %u bytes, got %u bytes", total_bytes_to_read, total_bytes_read);
-        return ESP_FAIL;
-    }
-    
-    return ESP_OK;
-}
-
 void i2s_audio_data_stream_task(void *arg)
 {
+    char *send_buffer = i2s_audio_data_convert_flag ? (char *)i2s_audio_pcm16_buffer : (char *)i2s_audio_raw_buffer;
+    size_t bytes_to_send = i2s_audio_data_convert_flag ? I2S_AUDIO_PCM16_SIZE : I2S_AUDIO_BUFFER_SIZE;
+    size_t bytes_to_read = I2S_AUDIO_BUFFER_SIZE;
     size_t bytes_read = 0;
     size_t bytes_sent = 0;
-    size_t bytes_to_read = I2S_AUDIO_RECORD_BUFFER * sizeof(int32_t);
+    int i = 0;
 
-    if (network_socket_init() < 0)
-    {
-        ESP_LOGE(TAG, "Failed to connect to host.");
-        recording_task_handle = NULL;
-        vTaskDelete(NULL);
-        return;
-    }
-    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
+    ESP_LOGI(TAG, "i2s_audio_data_stream_task() start!");
 
-    for (int i = 0; i < i2s_audio_record_num_of_buffer; i++)
+    while (i2s_audio_data_stream_flag)
     {
-        check_esp_err(i2s_channel_read(rx_handle, i2s_audio_buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000)), "i2s_channel_read");
+        check_esp_err(i2s_channel_read(rx_handle, i2s_audio_raw_buffer, bytes_to_read, &bytes_read, pdMS_TO_TICKS(1000)), "i2s_channel_read");
         if (bytes_read != bytes_to_read)
         {
             ESP_LOGE(TAG, "Read data: expected %u bytes, got %u bytes", bytes_to_read, bytes_read);
-            recording_task_handle = NULL;
+            i2s_audio_stream_task_handle = NULL;
             vTaskDelete(NULL);
             return;
         }
-        bytes_sent = network_socket_send(i2s_audio_buffer, bytes_read);
-        if (bytes_sent != bytes_read)
+
+        if (i2s_audio_data_convert_flag)
         {
-            ESP_LOGE(TAG, "Send data: expected %u bytes, sent %u bytes", bytes_read, bytes_sent);
-            recording_task_handle = NULL;
+            i2s_audio_convert_data(i2s_audio_raw_buffer, i2s_audio_pcm16_buffer, I2S_AUDIO_BUFFER_SAMPLES);
+        }
+
+        bytes_sent = network_socket_send(send_buffer, bytes_to_send);
+        if (bytes_sent != bytes_to_send)
+        {
+            ESP_LOGE(TAG, "Send data: expected %u bytes, sent %u bytes", bytes_to_send, bytes_sent);
+            i2s_audio_stream_task_handle = NULL;
             vTaskDelete(NULL);
             return;
         }
-        if ((i % 100) == 0)
-            ESP_LOGI(TAG, "Succcessfully sent %d samples!", i * 102400 + 1);
+        i++;
+        if ((i % 160) == 0)
+            ESP_LOGI(TAG, "Succcessfully sent %d samples!", i * 1024);
     }
 
     check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
     network_socket_close();
+    ESP_LOGI(TAG, "i2s_audio_data_stream_task() stop!");
 
-    recording_task_handle = NULL;
+    i2s_audio_stream_task_handle = NULL;
     vTaskDelete(NULL);
 }
 
-esp_err_t i2s_audio_recoard_data(int num_of_buffer)
+esp_err_t i2s_audio_stream_data(int pcm16_flag)
 {
-    if (recording_task_handle == NULL)
+    if (i2s_audio_stream_task_handle)
     {
-        ESP_LOGI(TAG, "I2S Audio start recording task.....");
-        i2s_audio_record_num_of_buffer = num_of_buffer;
-        xTaskCreate(i2s_audio_data_stream_task, "RecordTask", 4096, NULL, 5, &recording_task_handle);
+        ESP_LOGI(TAG, "Stopping I2S Audio streaming.....");
+        i2s_audio_data_stream_flag = false;
+        return ESP_OK;
     }
-    else
+
+    if (network_socket_init() < 0)
     {
-        ESP_LOGI(TAG, "I2S Audio recording is already running.....");
+        ESP_LOGE(TAG, "Failed to connect to host.");
+        return ESP_FAIL;
     }
+    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
+
+    i2s_audio_data_stream_flag = true;
+    i2s_audio_data_convert_flag = pcm16_flag;
+    xTaskCreate(i2s_audio_data_stream_task, "AudioStreamTask", 4096, NULL, 5, &i2s_audio_stream_task_handle);
+    return ESP_OK;
+}
+
+esp_err_t i2s_audio_stop_stream()
+{
+    i2s_audio_data_stream_flag = false;
     return ESP_OK;
 }
