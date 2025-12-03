@@ -209,8 +209,8 @@ void i2s_audio_data_stream_task(void *arg)
             ESP_LOGI(TAG, "Succcessfully sent %d samples!", i * 1024);
     }
 
-    check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
     network_socket_close();
+    check_esp_err(i2s_channel_disable(rx_handle), "i2s_channel_disable_rx");
     ESP_LOGI(TAG, "i2s_audio_data_stream_task() stop!");
 
     i2s_audio_stream_task_handle = NULL;
@@ -226,12 +226,12 @@ esp_err_t i2s_audio_stream_data(int pcm16_flag)
         return ESP_OK;
     }
 
+    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
     if (network_socket_init() < 0)
     {
         ESP_LOGE(TAG, "Failed to connect to host.");
         return ESP_FAIL;
     }
-    check_esp_err(i2s_channel_enable(rx_handle), "i2s_channel_enable_rx");
 
     i2s_audio_data_stream_flag = true;
     i2s_audio_data_convert_flag = pcm16_flag;
